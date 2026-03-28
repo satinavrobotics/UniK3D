@@ -4,6 +4,10 @@
 **/*egg-info
 .gradio/
 
+*.onnx
+*.pt
+**/examples
+
 # ignore scripts
 _*.sh
 __*.png
