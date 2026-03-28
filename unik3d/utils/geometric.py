@@ -231,7 +231,7 @@ def flat_interpolate(
         return flat_tensor
     tensor = flat_tensor.view(flat_tensor.shape[0], old[0], old[1], -1).permute(
         0, 3, 1, 2
-    )  # b c h w
+    )
     tensor_interp = F.interpolate(
         tensor,
         size=(new[0], new[1]),
@@ -239,12 +239,12 @@ def flat_interpolate(
         align_corners=False,
         antialias=antialias,
     )
-    flat_tensor_interp = tensor_interp.view(
-        flat_tensor.shape[0], -1, new[0] * new[1]
-    ).permute(
-        0, 2, 1
-    )  # b (h w) c
-    return flat_tensor_interp.contiguous()
+    flat_tensor_interp = (
+        tensor_interp.permute(0, 2, 3, 1)
+        .reshape(flat_tensor.shape[0], -1, flat_tensor.shape[-1])
+        .contiguous()
+    )
+    return flat_tensor_interp
 
 
 @torch.autocast(device_type="cuda", enabled=False, dtype=torch.float32)

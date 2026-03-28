@@ -273,7 +273,7 @@ class RadialModule(nn.Module):
 
     def embed_rays(self, rays):
         rays_embedding = flat_interpolate(
-            rays, old=self.original_shapes, new=self.shapes, antialias=True
+            rays, old=self.original_shapes, new=self.shapes, antialias=False
         )
         rays_embedding = rays_embedding / torch.norm(
             rays_embedding, dim=-1, keepdim=True
@@ -470,17 +470,27 @@ class Decoder(nn.Module):
         pos_embed = self.pos_embed(dummy_tensor)
         pos_embed = rearrange(pos_embed, "b c h w -> b (h w) c").repeat(1, 4, 1)
 
-        # get cls tokens projections
-        camera_tokens = inputs["tokens"]
-        camera_tokens = [self.choker(x.contiguous()) for x in camera_tokens]
-        camera_tokens = self.camera_token_adapter(camera_tokens)
-        self.angular_module.set_shapes((H, W))
-
-        intrinsics, rays = self.run_camera(
-            torch.cat(camera_tokens, dim=1),
-            original_shapes=(H, W),
-            rays_gt=rays_gt,
+        use_rays_gt_direct = (
+            (not self.training)
+            and self.camera_gt
+            and self.skip_angular_when_rays_gt
+            and (rays_gt is not None)
         )
+        if use_rays_gt_direct:
+            intrinsics = torch.zeros(B, 4, device=device, dtype=inputs["image"].dtype)
+            rays = rearrange(rays_gt, "b c h w -> b (h w) c")
+        else:
+            # get cls tokens projections
+            camera_tokens = inputs["tokens"]
+            camera_tokens = [self.choker(x.contiguous()) for x in camera_tokens]
+            camera_tokens = self.camera_token_adapter(camera_tokens)
+            self.angular_module.set_shapes((H, W))
+
+            intrinsics, rays = self.run_camera(
+                torch.cat(camera_tokens, dim=1),
+                original_shapes=(H, W),
+                rays_gt=rays_gt,
+            )
 
         # run bulk of the model
         self.radial_module.set_shapes(common_shape)
@@ -563,3 +573,4 @@ class Decoder(nn.Module):
             requires_grad=False,
         )
         self.camera_gt = True
+        self.skip_angular_when_rays_gt = False

@@ -13,7 +13,9 @@ def coords_grid(b, h, w, homogeneous=False, device=None, noisy=False):
         ones = torch.ones_like(stacks[0])  # [H, W]
         stacks.append(ones)
     grid = torch.stack(stacks, dim=0).float()  # [2, H, W] or [3, H, W]
-    grid = grid[None].repeat(b, 1, 1, 1)  # [B, 2, H, W] or [B, 3, H, W]
+    # Use unsqueeze + expand + contiguous for ONNX compatibility
+    # contiguous() materializes the view created by expand
+    grid = grid.unsqueeze(0).expand(b, -1, -1, -1).contiguous()  # [B, 2, H, W] or [B, 3, H, W]
     if device is not None:
         grid = grid.to(device)
 

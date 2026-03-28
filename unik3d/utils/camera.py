@@ -100,7 +100,7 @@ class Camera:
 
     def get_rays(self, shapes, noisy=False):
         b, h, w = shapes
-        uv = coords_grid(1, h, w, device=self.K.device, noisy=noisy)
+        uv = coords_grid(b, h, w, device=self.K.device, noisy=noisy)
         rays = self.unproject(uv)
         return rays / torch.norm(rays, dim=1, keepdim=True).clamp(min=1e-4)
 
@@ -1230,6 +1230,17 @@ class BatchCamera(Camera):
         return torch.cat(
             [camera.projection_mask for i, camera in enumerate(self.cameras)]
         )
+
+    def get_rays(self, shapes, noisy=False):
+        """Get rays for each camera in the batch."""
+        b, h, w = shapes
+        rays_list = []
+        for i, camera in enumerate(self.cameras):
+            # Get rays for this camera with batch size 1
+            rays = camera.get_rays(shapes=(1, h, w), noisy=noisy)
+            rays_list.append(rays)
+        # Concatenate rays from all cameras
+        return torch.cat(rays_list, dim=0)
 
     def to(self, device, non_blocking=False):
         self = super().to(device, non_blocking=non_blocking)
